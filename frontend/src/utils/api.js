@@ -165,6 +165,17 @@ export async function getAdminStats() {
   return request('/admin/stats')
 }
 
+export async function searchConversations(query) {
+  return request(`/chat/search?q=${encodeURIComponent(query)}`)
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  return request('/auth/change-password', {
+    method: 'POST',
+    body: { current_password: currentPassword, new_password: newPassword },
+  })
+}
+
 export async function healthCheck() {
   return request('/health')
 }

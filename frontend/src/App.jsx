@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity } from 'lucide-react'
+import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity, Search, Settings } from 'lucide-react'
 import ChatWidget from './components/ChatWidget'
 import WelcomeScreen from './components/WelcomeScreen'
 import LoginScreen from './components/LoginScreen'
+import SearchModal from './components/SearchModal'
+import SettingsModal from './components/SettingsModal'
 import { healthCheck, getStoredUser, isAuthenticated, logout, listConversations, deleteConversation, getAdminStats } from './utils/api'
 
 export default function App() {
@@ -17,6 +19,8 @@ export default function App() {
   const [activeConvId, setActiveConvId] = useState(null)
   const [sidebarTab, setSidebarTab] = useState('chats')
   const [adminStats, setAdminStats] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     const stored = getStoredUser()
@@ -97,6 +101,17 @@ export default function App() {
     return () => window.removeEventListener('trace-conversation-saved', handler)
   }, [])
 
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   const formatDate = (iso) => {
     if (!iso) return ''
     const d = new Date(iso)
@@ -144,6 +159,20 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors hidden sm:block"
+            title="Search conversations (Ctrl+K)"
+          >
+            <Search size={15} />
+          </button>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors"
+            title="Settings"
+          >
+            <Settings size={15} />
+          </button>
           {user && (
             <span className="text-[10px] text-surface-500 mr-1">{user.username}{user.isAdmin ? ' (Admin)' : ''}</span>
           )}
@@ -306,6 +335,16 @@ export default function App() {
           )}
         </main>
       </div>
+
+      <SearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelectConversation={handleSelectConversation}
+      />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   )
 }

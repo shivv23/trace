@@ -12,7 +12,8 @@ from app.config import settings
 from app.models.schemas import ChatRequest, ChatResponse, SourceChunk, ConfidenceScore
 from app.models.db import (
     a_get_conversation, a_create_conversation, a_add_message,
-    a_get_conversation_messages, a_update_conversation_title
+    a_get_conversation_messages, a_update_conversation_title,
+    a_search_messages
 )
 from app.core.retrieval import HybridRetriever
 from app.core.reranking import Reranker
@@ -261,6 +262,14 @@ async def get_history(conversation_id: str, user: dict = Depends(get_current_use
 
 
 from app.models.db import a_list_user_conversations, a_delete_conversation
+
+
+@router.get("/search")
+async def search_conversations(q: str, user: dict = Depends(get_current_user)):
+    if not q or len(q.strip()) < 2:
+        return {"results": []}
+    results = await a_search_messages(q.strip(), user["id"])
+    return {"results": results, "query": q.strip()}
 
 
 @router.get("/conversations/list")

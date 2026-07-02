@@ -394,3 +394,30 @@ async def a_delete_conversation(*a, **kw):
 
 async def a_get_admin_stats(*a, **kw):
     return await asyncio.to_thread(get_admin_stats, *a, **kw)
+
+
+def search_messages(query: str, user_id: str) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT m.id, m.content, m.role, m.conversation_id, m.created_at,
+                   c.title as conv_title
+            FROM messages m
+            JOIN conversations c ON c.id = m.conversation_id
+            WHERE c.user_id = ? AND m.content LIKE ?
+            ORDER BY m.created_at DESC LIMIT 30
+        """, (user_id, f"%{query}%")).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_password(user_id: str, hashed_password: str):
+    with get_db() as conn:
+        conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed_password, user_id))
+
+
+async def a_search_messages(*a, **kw):
+    return await asyncio.to_thread(search_messages, *a, **kw)
+
+
+async def a_update_password(*a, **kw):
+    async with _async_lock:
+        return await asyncio.to_thread(update_password, *a, **kw)
