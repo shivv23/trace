@@ -24,15 +24,18 @@ export function useChat() {
       const loaded = (data.messages || []).map((msg, idx) => {
         const isAssistant = msg.role === 'assistant'
         if (isAssistant) aiIdx += 1
+        const conf = msg.confidence || {}
         return {
           id: `msg-${msg.id || idx}`,
           role: msg.role,
           content: msg.content,
           sources: msg.sources,
-          confidence: msg.confidence,
+          confidence: conf,
           conversationId: data.conversation_id,
           messageIndex: isAssistant ? aiIdx : undefined,
           timestamp: msg.created_at,
+          language: conf._lang || 'en',
+          webSearchUsed: conf._web || false,
         }
       })
       assistantIndex.current = aiIdx
@@ -133,6 +136,8 @@ export function useChat() {
                       processingTime: parsed.processing_time_ms,
                       grounded: parsed.grounded,
                       suggestedQuestions: parsed.suggested_questions || [],
+                      language: parsed.language || 'en',
+                      webSearchUsed: parsed.web_search_used || false,
                     }
                   : m
               ))
@@ -182,6 +187,8 @@ export function useChat() {
         conversationId: response.conversation_id,
         messageIndex: assistantIndex.current,
         processingTime: response.processing_time_ms,
+        language: response.language || 'en',
+        webSearchUsed: response.web_search_used || false,
         timestamp: new Date().toISOString(),
       }
       setMessages(prev => [...prev, assistantMessage])

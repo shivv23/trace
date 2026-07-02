@@ -169,6 +169,24 @@ export async function searchConversations(query) {
   return request(`/chat/search?q=${encodeURIComponent(query)}`)
 }
 
+export async function shareConversation(conversationId) {
+  return request(`/chat/${conversationId}/share`, { method: 'POST' })
+}
+
+export async function unshareConversation(conversationId) {
+  return request(`/chat/${conversationId}/share`, { method: 'DELETE' })
+}
+
+export async function getSharedConversation(shareId) {
+  const res = await fetch(`${API_BASE}/shared/${shareId}`)
+  if (!res.ok) throw new Error('Not found')
+  return res.json()
+}
+
+export async function getFeedbackStats() {
+  return request('/admin/feedback-stats')
+}
+
 export async function changePassword(currentPassword, newPassword) {
   return request('/auth/change-password', {
     method: 'POST',

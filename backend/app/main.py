@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.models.db import init_db, list_documents, delete_document as db_delete_doc, create_user, get_user_by_username
+from app.models.db import init_db, list_documents, delete_document as db_delete_doc, create_user, get_user_by_username, migrate_add_share_id, a_get_conversation_by_share_id, a_get_conversation_messages
 from app.core.embeddings import EmbeddingProvider, get_embedding_provider
 from app.core.auth import hash_password, get_current_user
 from app.api.chat import router as chat_router, init_chat_engine
@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
     settings.CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 
     init_db()
+    migrate_add_share_id()
 
     chroma_client = _init_chroma()
     init_document_engine(chroma_client)
@@ -171,6 +172,30 @@ async def admin_stats(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     from app.models.db import a_get_admin_stats
     return await a_get_admin_stats()
+
+
+@app.get("/api/admin/feedback-stats")
+async def admin_feedback_stats(user: dict = Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from app.models.db import a_get_feedback_stats
+    return await a_get_feedback_stats()
+
+
+@app.get("/api/shared/{share_id}")
+async def get_shared_conversation(share_id: str):
+    conv = await a_get_conversation_by_share_id(share_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Shared conversation not found")
+    messages = await a_get_conversation_messages(conv["id"])
+    return {
+        "title": conv.get("title", "Shared conversation"),
+        "created_at": conv.get("created_at", ""),
+        "messages": [
+            {"role": m["role"], "content": m["content"], "created_at": m.get("created_at", "")}
+            for m in messages
+        ],
+    }
 
 
 @app.get("/api/health")

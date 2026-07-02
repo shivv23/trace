@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity, Search, Settings } from 'lucide-react'
+import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity, Search, Settings, Share2, Globe, ThumbsUp } from 'lucide-react'
 import ChatWidget from './components/ChatWidget'
 import WelcomeScreen from './components/WelcomeScreen'
 import LoginScreen from './components/LoginScreen'
 import SearchModal from './components/SearchModal'
 import SettingsModal from './components/SettingsModal'
-import { healthCheck, getStoredUser, isAuthenticated, logout, listConversations, deleteConversation, getAdminStats } from './utils/api'
+import SharedConversationView from './components/SharedConversationView'
+import { healthCheck, getStoredUser, isAuthenticated, logout, listConversations, deleteConversation, getAdminStats, getFeedbackStats, shareConversation, unshareConversation } from './utils/api'
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -21,6 +22,11 @@ export default function App() {
   const [adminStats, setAdminStats] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [feedbackStats, setFeedbackStats] = useState(null)
+  const [sharingConvId, setSharingConvId] = useState(null)
+  const [sharedUrl, setSharedUrl] = useState('')
+
+  const pathShareId = window.location.pathname.match(/^\/shared\/([a-f0-9]+)/i)?.[1]
 
   useEffect(() => {
     const stored = getStoredUser()
@@ -38,7 +44,7 @@ export default function App() {
       .then(() => setBackendStatus('online'))
       .catch(() => setBackendStatus('offline'))
     loadConversations()
-    if (user?.isAdmin) loadAdminStats()
+    if (user?.isAdmin) { loadAdminStats(); loadFeedbackStats() }
   }, [authenticated])
 
   const loadConversations = async () => {
@@ -52,6 +58,29 @@ export default function App() {
     try {
       const data = await getAdminStats()
       setAdminStats(data)
+    } catch {}
+  }
+
+  const loadFeedbackStats = async () => {
+    try {
+      const data = await getFeedbackStats()
+      setFeedbackStats(data)
+    } catch {}
+  }
+
+  const handleShare = async (convId) => {
+    try {
+      const data = await shareConversation(convId)
+      setSharingConvId(convId)
+      setSharedUrl(`${window.location.origin}/shared/${data.share_id}`)
+    } catch {}
+  }
+
+  const handleUnshare = async (convId) => {
+    try {
+      await unshareConversation(convId)
+      setSharingConvId(null)
+      setSharedUrl('')
     } catch {}
   }
 
@@ -123,6 +152,10 @@ export default function App() {
     const diffHr = Math.floor(diffMin / 60)
     if (diffHr < 24) return `${diffHr}h ago`
     return d.toLocaleDateString()
+  }
+
+  if (pathShareId) {
+    return <SharedConversationView shareId={pathShareId} onBack={() => window.location.href = '/'} />
   }
 
   if (checkingAuth) {
@@ -283,12 +316,22 @@ export default function App() {
                               <span className="text-[10px] text-surface-600">{formatDate(conv.updated_at)}</span>
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => handleDeleteConversation(e, conv.id)}
-                            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-surface-500 hover:text-red-400 transition-all"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleShare(conv.id) }}
+                              className="p-1 rounded hover:bg-trace-500/20 text-surface-500 hover:text-trace-400"
+                              title="Share"
+                            >
+                              <Share2 size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteConversation(e, conv.id)}
+                              className="p-1 rounded hover:bg-red-500/20 text-surface-500 hover:text-red-400"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </motion.button>
                       ))}
                     </div>
@@ -319,6 +362,47 @@ export default function App() {
                         </p>
                         <p className="text-[10px] text-surface-600 mt-1">{adminStats.feedback_entries} feedback entries</p>
                       </div>
+
+                      {feedbackStats && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] text-surface-500 uppercase tracking-wider px-1">Feedback Satisfaction</p>
+                          <div className="glass-panel rounded-xl px-4 py-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs text-surface-400">Satisfaction Rate</p>
+                              <div className="flex items-center gap-1.5">
+                                <ThumbsUp size={12} className="text-emerald-400" />
+                                <span className="text-sm font-bold text-white">
+                                  {feedbackStats.satisfaction_rate ? `${(feedbackStats.satisfaction_rate * 100).toFixed(0)}%` : '—'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="h-2 bg-surface-700/50 rounded-full overflow-hidden">
+                              <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
+                                style={{ width: `${(feedbackStats.satisfaction_rate || 0) * 100}%` }} />
+                            </div>
+                            <div className="flex justify-between mt-1.5 text-[10px]">
+                              <span className="text-surface-500">{feedbackStats.positive} positive</span>
+                              <span className="text-surface-500">{feedbackStats.negative} negative</span>
+                            </div>
+                          </div>
+                          {feedbackStats.total > 0 && (
+                            <div className="flex gap-2">
+                              <div className="flex-1 glass-panel rounded-xl px-3 py-2.5 text-center">
+                                <p className="text-lg font-bold text-emerald-400">{feedbackStats.positive}</p>
+                                <p className="text-[10px] text-surface-500">Upvotes</p>
+                              </div>
+                              <div className="flex-1 glass-panel rounded-xl px-3 py-2.5 text-center">
+                                <p className="text-lg font-bold text-red-400">{feedbackStats.negative}</p>
+                                <p className="text-[10px] text-surface-500">Downvotes</p>
+                              </div>
+                              <div className="flex-1 glass-panel rounded-xl px-3 py-2.5 text-center">
+                                <p className="text-lg font-bold text-white">{feedbackStats.total}</p>
+                                <p className="text-[10px] text-surface-500">Total</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -326,6 +410,43 @@ export default function App() {
             </motion.aside>
           )}
         </AnimatePresence>
+
+        {sharingConvId && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setSharingConvId(null); setSharedUrl('') }}>
+            <div className="w-full max-w-sm mx-4 bg-surface-900 border border-surface-700/50 rounded-2xl shadow-2xl p-5" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-sm font-semibold text-white mb-3">Share Conversation</h3>
+              <div className="flex items-center gap-2 bg-surface-800 rounded-lg px-3 py-2.5 border border-surface-700/50 mb-3">
+                <Globe size={14} className="text-surface-500 shrink-0" />
+                <input
+                  readOnly
+                  value={sharedUrl}
+                  className="flex-1 bg-transparent text-xs text-surface-300 outline-none truncate"
+                  onClick={(e) => e.target.select()}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { navigator.clipboard.writeText(sharedUrl); }}
+                  className="flex-1 px-3 py-2 bg-trace-600 hover:bg-trace-500 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  Copy Link
+                </button>
+                <button
+                  onClick={() => handleUnshare(sharingConvId)}
+                  className="px-3 py-2 bg-surface-800 hover:bg-red-500/20 text-surface-400 hover:text-red-400 text-xs rounded-lg transition-colors"
+                >
+                  Unshare
+                </button>
+                <button
+                  onClick={() => { setSharingConvId(null); setSharedUrl('') }}
+                  className="px-3 py-2 bg-surface-800 hover:bg-surface-700 text-surface-400 text-xs rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <main className="flex-1 flex flex-col min-w-0 relative">
           {showWelcome ? (

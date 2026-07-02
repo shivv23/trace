@@ -365,6 +365,26 @@ def delete_conversation(conv_id: str):
         conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
 
 
+def get_feedback_stats() -> dict:
+    with get_db() as conn:
+        total = conn.execute("SELECT COUNT(*) as c FROM feedback_log").fetchone()["c"]
+        positive = conn.execute("SELECT COUNT(*) as c FROM feedback_log WHERE rating=1").fetchone()["c"]
+        negative = conn.execute("SELECT COUNT(*) as c FROM feedback_log WHERE rating=0").fetchone()["c"]
+        recent = conn.execute("""
+            SELECT fl.rating, fl.created_at, fl.corrected_answer, m.content as message_content
+            FROM feedback_log fl
+            JOIN messages m ON m.id = fl.message_id
+            ORDER BY fl.created_at DESC LIMIT 20
+        """).fetchall()
+    return {
+        "total": total,
+        "positive": positive,
+        "negative": negative,
+        "satisfaction_rate": round(positive / total, 3) if total else 0,
+        "recent_feedback": [dict(r) for r in recent],
+    }
+
+
 def get_admin_stats() -> dict:
     with get_db() as conn:
         user_count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
@@ -396,6 +416,10 @@ async def a_get_admin_stats(*a, **kw):
     return await asyncio.to_thread(get_admin_stats, *a, **kw)
 
 
+async def a_get_feedback_stats(*a, **kw):
+    return await asyncio.to_thread(get_feedback_stats, *a, **kw)
+
+
 def search_messages(query: str, user_id: str) -> list[dict]:
     with get_db() as conn:
         rows = conn.execute("""
@@ -414,6 +438,30 @@ def update_password(user_id: str, hashed_password: str):
         conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed_password, user_id))
 
 
+def migrate_add_share_id():
+    with get_db() as conn:
+        try:
+            conn.execute("ALTER TABLE conversations ADD COLUMN share_id TEXT")
+        except Exception:
+            pass
+
+
+def set_share_id(conv_id: str, share_id: str):
+    with get_db() as conn:
+        conn.execute("UPDATE conversations SET share_id = ? WHERE id = ?", (share_id, conv_id))
+
+
+def clear_share_id(conv_id: str):
+    with get_db() as conn:
+        conn.execute("UPDATE conversations SET share_id = NULL WHERE id = ?", (conv_id,))
+
+
+def get_conversation_by_share_id(share_id: str) -> dict | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT id, user_id, title, created_at FROM conversations WHERE share_id = ?", (share_id,)).fetchone()
+    return dict(row) if row else None
+
+
 async def a_search_messages(*a, **kw):
     return await asyncio.to_thread(search_messages, *a, **kw)
 
@@ -421,3 +469,17 @@ async def a_search_messages(*a, **kw):
 async def a_update_password(*a, **kw):
     async with _async_lock:
         return await asyncio.to_thread(update_password, *a, **kw)
+
+
+async def a_set_share_id(*a, **kw):
+    async with _async_lock:
+        return await asyncio.to_thread(set_share_id, *a, **kw)
+
+
+async def a_clear_share_id(*a, **kw):
+    async with _async_lock:
+        return await asyncio.to_thread(clear_share_id, *a, **kw)
+
+
+async def a_get_conversation_by_share_id(*a, **kw):
+    return await asyncio.to_thread(get_conversation_by_share_id, *a, **kw)

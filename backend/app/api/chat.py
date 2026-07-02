@@ -17,9 +17,10 @@ from app.models.db import (
 )
 from app.core.retrieval import HybridRetriever
 from app.core.reranking import Reranker
-from app.core.generation import generate_answer, stream_answer
+from app.core.generation import generate_answer, stream_answer, detect_language
 from app.core.confidence import compute_confidence
 from app.core.auth import get_current_user
+from app.core.web_search import search_web, format_web_results
 from app.utils.moderation import moderate_input
 from app.utils.pii import redact_pii
 
@@ -111,6 +112,25 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
     reranked = _reranker.rerank(request.message, retrieved)
     confidence = compute_confidence(request.message, reranked)
 
+    detected_lang = detect_language(request.message)
+
+    has_sources = len(reranked[:5]) > 0
+    top_score = max((s.get("rerank_score", s.get("combined_score", 0)) for s in reranked[:5]), default=0)
+    grounded = has_sources and top_score >= settings.CONFIDENCE_THRESHOLD_MEDIUM
+
+    web_results_text = ""
+    web_results = []
+    web_search_used = False
+    if not grounded or top_score < settings.CONFIDENCE_THRESHOLD_MEDIUM:
+        try:
+            web_results = search_web(request.message, max_results=4)
+            if web_results:
+                web_results_text = format_web_results(web_results)
+                web_search_used = True
+                logger.info(f"Web search used for query: {request.message[:60]}... ({len(web_results)} results)")
+        except Exception as e:
+            logger.warning(f"Web search skipped: {e}")
+
     await a_add_message(conversation_id, "user", redact_pii(request.message), user_id=user["id"])
 
     was_new = not conv
@@ -128,11 +148,15 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
          "file_type": s.get("metadata", {}).get("file_type", "")}
         for s in reranked[:5]
     ])
-    confidence_json = json.dumps(confidence)
+    confidence_json = json.dumps({
+        **confidence,
+        "_lang": detected_lang,
+        "_web": web_search_used,
+    })
 
     async def event_generator():
         full_answer = ""
-        for token_data in stream_answer(request.message, reranked, history):
+        for token_data in stream_answer(request.message, reranked, history, web_results_text, detected_lang):
             yield f"data: {token_data}\n\n"
             try:
                 parsed = json.loads(token_data)
@@ -144,10 +168,6 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
         processing_time = (time.monotonic() - start_time) * 1000
         await a_add_message(conversation_id, "assistant", redact_pii(full_answer),
                             sources=sources_json, confidence=confidence_json, user_id=user["id"])
-
-        has_sources = len(reranked[:5]) > 0
-        top_score = max((s.get("rerank_score", s.get("combined_score", 0)) for s in reranked[:5]), default=0)
-        grounded = has_sources and top_score >= settings.CONFIDENCE_THRESHOLD_MEDIUM
 
         suggested = _generate_suggested_questions(request.message, reranked)
 
@@ -168,6 +188,9 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
             "processing_time_ms": round(processing_time, 1),
             "grounded": grounded,
             "suggested_questions": suggested,
+            "language": detected_lang,
+            "web_search_used": web_search_used,
+            "web_results": web_results[:3] if web_results else [],
         })
         yield f"data: {metadata}\n\n"
 
@@ -204,7 +227,25 @@ async def chat(request: ChatRequest, fastapi_request: Request, user: dict = Depe
     retrieved = _retriever.retrieve(request.message, document_ids=doc_filter)
     reranked = _reranker.rerank(request.message, retrieved)
     confidence = compute_confidence(request.message, reranked)
-    answer = generate_answer(request.message, reranked, history)
+
+    detected_lang = detect_language(request.message)
+    has_sources = len(reranked[:5]) > 0
+    top_score = max((s.get("rerank_score", s.get("combined_score", 0)) for s in reranked[:5]), default=0)
+    grounded = has_sources and top_score >= settings.CONFIDENCE_THRESHOLD_MEDIUM
+
+    web_results_text = ""
+    web_result_items = []
+    web_search_used = False
+    if not grounded or top_score < settings.CONFIDENCE_THRESHOLD_MEDIUM:
+        try:
+            web_result_items = search_web(request.message, max_results=4)
+            if web_result_items:
+                web_results_text = format_web_results(web_result_items)
+                web_search_used = True
+        except Exception:
+            pass
+
+    answer = generate_answer(request.message, reranked, history, web_results_text, detected_lang)
 
     processing_time = (time.monotonic() - start_time) * 1000
 
@@ -223,7 +264,11 @@ async def chat(request: ChatRequest, fastapi_request: Request, user: dict = Depe
         }
         for s in reranked[:5]
     ])
-    confidence_json = json.dumps(confidence)
+    confidence_json = json.dumps({
+        **confidence,
+        "_lang": detected_lang,
+        "_web": web_search_used,
+    })
 
     await a_add_message(conversation_id, "assistant", redact_pii(answer), sources=sources_json, confidence=confidence_json, user_id=user["id"])
 
@@ -247,6 +292,8 @@ async def chat(request: ChatRequest, fastapi_request: Request, user: dict = Depe
         confidence=ConfidenceScore(**confidence),
         conversation_id=conversation_id,
         processing_time_ms=round(processing_time, 1),
+        language=detected_lang,
+        web_search_used=web_search_used,
     )
 
 
@@ -261,7 +308,7 @@ async def get_history(conversation_id: str, user: dict = Depends(get_current_use
     return {"conversation_id": conversation_id, "messages": messages}
 
 
-from app.models.db import a_list_user_conversations, a_delete_conversation
+from app.models.db import a_list_user_conversations, a_delete_conversation, a_set_share_id, a_clear_share_id, a_get_conversation_by_share_id, migrate_add_share_id
 
 
 @router.get("/search")
@@ -270,6 +317,29 @@ async def search_conversations(q: str, user: dict = Depends(get_current_user)):
         return {"results": []}
     results = await a_search_messages(q.strip(), user["id"])
     return {"results": results, "query": q.strip()}
+
+
+@router.post("/{conversation_id}/share")
+async def share_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+    conv = await a_get_conversation(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conv.get("user_id") and conv["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    share_id = uuid.uuid4().hex[:12]
+    await a_set_share_id(conversation_id, share_id)
+    return {"share_id": share_id, "share_url": f"/shared/{share_id}"}
+
+
+@router.delete("/{conversation_id}/share")
+async def unshare_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+    conv = await a_get_conversation(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conv.get("user_id") and conv["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    await a_clear_share_id(conversation_id)
+    return {"success": True}
 
 
 @router.get("/conversations/list")

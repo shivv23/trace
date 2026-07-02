@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { User, Bot, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, Download, Lightbulb } from 'lucide-react'
+import { User, Bot, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, Download, Lightbulb, Globe, Search } from 'lucide-react'
 import ConfidenceGauge from './ConfidenceGauge'
 import SourceCard from './SourceCard'
 import FeedbackButtons from './FeedbackButtons'
@@ -109,11 +109,25 @@ export default function MessageBubble({ message, onRate, onSuggestedClick }) {
                 <Download size={12} />
               </button>
 
-              {message.processingTime && (
-                <span className="text-[10px] text-surface-500 ml-auto">
-                  {(message.processingTime / 1000).toFixed(1)}s
-                </span>
-              )}
+              <div className="flex items-center gap-1.5 ml-auto">
+                {message.language && message.language !== 'en' && (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-surface-800/60 text-surface-400 border border-surface-700/30">
+                    <Globe size={10} />
+                    {message.language.toUpperCase()}
+                  </span>
+                )}
+                {message.webSearchUsed && (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-trace-500/10 text-trace-400 border border-trace-500/20">
+                    <Search size={10} />
+                    Web
+                  </span>
+                )}
+                {message.processingTime && (
+                  <span className="text-[10px] text-surface-500">
+                    {(message.processingTime / 1000).toFixed(1)}s
+                  </span>
+                )}
+              </div>
             </div>
 
             {hasSources && (

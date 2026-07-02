@@ -35,6 +35,8 @@ class ChatResponse(BaseModel):
     confidence: ConfidenceScore
     conversation_id: str
     processing_time_ms: float
+    language: str = "en"
+    web_search_used: bool = False
 
 
 class FeedbackRequest(BaseModel):
