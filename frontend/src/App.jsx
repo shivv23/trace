@@ -243,7 +243,10 @@ export default function App() {
                         >
                           <MessageSquare size={14} className="mt-0.5 shrink-0 text-surface-500" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-surface-300 truncate">
+                            <p className="text-xs text-surface-300 truncate font-medium">
+                              {conv.title || 'New conversation'}
+                            </p>
+                            <p className="text-[10px] text-surface-600 truncate mt-0.5">
                               {conv.message_count > 0 ? `${conv.message_count} messages` : 'Empty chat'}
                             </p>
                             <div className="flex items-center gap-1.5 mt-1">

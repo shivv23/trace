@@ -131,6 +131,8 @@ export function useChat() {
                       confidence: parsed.confidence || null,
                       conversationId: newConvId,
                       processingTime: parsed.processing_time_ms,
+                      grounded: parsed.grounded,
+                      suggestedQuestions: parsed.suggested_questions || [],
                     }
                   : m
               ))

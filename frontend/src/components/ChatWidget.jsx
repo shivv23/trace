@@ -77,6 +77,11 @@ export default function ChatWidget({ conversationId, onConversationSaved }) {
     setInput('')
   }
 
+  const handleSuggestedClick = (question) => {
+    send(question)
+    setInput('')
+  }
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -126,6 +131,7 @@ export default function ChatWidget({ conversationId, onConversationSaved }) {
                 key={msg.id}
                 message={msg}
                 onRate={(rating) => rateMessage(msg.messageIndex, rating)}
+                onSuggestedClick={handleSuggestedClick}
               />
             ))}
           </AnimatePresence>

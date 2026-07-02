@@ -2,16 +2,33 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { User, Bot, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { User, Bot, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, Download, Lightbulb } from 'lucide-react'
 import ConfidenceGauge from './ConfidenceGauge'
 import SourceCard from './SourceCard'
 import FeedbackButtons from './FeedbackButtons'
 import clsx from 'clsx'
 
-export default function MessageBubble({ message, onRate }) {
+export default function MessageBubble({ message, onRate, onSuggestedClick }) {
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
   const isUser = message.role === 'user'
   const hasSources = message.sources && message.sources.length > 0
+  const hasSuggestions = message.suggestedQuestions && message.suggestedQuestions.length > 0
+  const isUngrounded = !isUser && message.grounded === false && hasSources
+
+  const handleExport = () => {
+    const allMessages = []
+    if (message.suggestedQuestions) {
+    }
+    const text = `**${message.role === 'user' ? 'You' : 'Trace'}**: ${message.content}`
+    allMessages.push(text)
+    const blob = new Blob([allMessages.join('\n\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `trace-message-${Date.now()}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <motion.div
@@ -39,6 +56,15 @@ export default function MessageBubble({ message, onRate }) {
             ? 'bg-gradient-to-br from-trace-600 to-trace-700 text-white rounded-2xl rounded-tr-md'
             : 'glass-panel rounded-2xl rounded-tl-md'
         )}>
+          {isUngrounded && (
+            <div className="flex items-center gap-2 mb-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle size={12} className="text-amber-400 shrink-0" />
+              <span className="text-[10px] text-amber-400 leading-tight">
+                This answer uses general AI knowledge. The documents may not contain this information.
+              </span>
+            </div>
+          )}
+
           {isUser ? (
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
           ) : (
@@ -75,6 +101,14 @@ export default function MessageBubble({ message, onRate }) {
                 onRate={onRate}
               />
 
+              <button
+                onClick={handleExport}
+                className="p-1 rounded hover:bg-surface-800 text-surface-500 hover:text-surface-300 transition-colors"
+                title="Download this message"
+              >
+                <Download size={12} />
+              </button>
+
               {message.processingTime && (
                 <span className="text-[10px] text-surface-500 ml-auto">
                   {(message.processingTime / 1000).toFixed(1)}s
@@ -100,6 +134,28 @@ export default function MessageBubble({ message, onRate }) {
                     ))}
                   </div>
                 </AnimateSection>
+              </div>
+            )}
+
+            {hasSuggestions && (
+              <div className="pt-1">
+                <div className="flex items-center gap-1.5 mb-1.5 px-1">
+                  <Lightbulb size={11} className="text-surface-500" />
+                  <span className="text-[10px] text-surface-500 font-medium">Follow-up questions</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {message.suggestedQuestions.map((q, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => onSuggestedClick?.(q)}
+                      className="px-2.5 py-1.5 text-[11px] rounded-lg bg-surface-800/50 border border-surface-700/30
+                        text-surface-400 hover:text-white hover:border-trace-500/30 hover:bg-trace-500/5
+                        transition-all duration-200 text-left max-w-full"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

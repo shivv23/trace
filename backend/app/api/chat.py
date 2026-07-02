@@ -12,7 +12,7 @@ from app.config import settings
 from app.models.schemas import ChatRequest, ChatResponse, SourceChunk, ConfidenceScore
 from app.models.db import (
     a_get_conversation, a_create_conversation, a_add_message,
-    a_get_conversation_messages
+    a_get_conversation_messages, a_update_conversation_title
 )
 from app.core.retrieval import HybridRetriever
 from app.core.reranking import Reranker
@@ -24,6 +24,28 @@ from app.utils.pii import redact_pii
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+def _generate_suggested_questions(query: str, context_chunks: list[dict]) -> list[str]:
+    doc_names = list(dict.fromkeys(
+        s.get("metadata", {}).get("document_name", "")
+        for s in context_chunks if s.get("metadata", {}).get("document_name")
+    ))
+    questions = []
+    if doc_names:
+        questions.append(f"Summarize the key information from {doc_names[0]}")
+        if len(doc_names) > 1:
+            questions.append(f"How does {doc_names[0]} relate to {doc_names[1]}?")
+    if "summar" in query.lower() or "overview" in query.lower():
+        questions.append("What are the specific details or data points?")
+    elif "how" in query.lower():
+        questions.append("What are the best practices for this?")
+    elif "what" in query.lower():
+        questions.append("Can you explain how this works in more detail?")
+    else:
+        questions.append("Can you provide more specific details?")
+    questions.append("What are the key takeaways from this information?")
+    return questions[:3]
 
 _retriever: HybridRetriever = None
 _reranker: Reranker = None
@@ -90,6 +112,11 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
 
     await a_add_message(conversation_id, "user", redact_pii(request.message), user_id=user["id"])
 
+    was_new = not conv
+    if was_new:
+        title = request.message[:80] + ("..." if len(request.message) > 80 else "")
+        await a_update_conversation_title(conversation_id, title)
+
     sources_json = json.dumps([
         {"chunk_id": s["chunk_id"], "document_id": s.get("metadata", {}).get("document_id", ""),
          "document_name": s.get("metadata", {}).get("document_name", "Unknown"),
@@ -117,6 +144,12 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
         await a_add_message(conversation_id, "assistant", redact_pii(full_answer),
                             sources=sources_json, confidence=confidence_json, user_id=user["id"])
 
+        has_sources = len(reranked[:5]) > 0
+        top_score = max((s.get("rerank_score", s.get("combined_score", 0)) for s in reranked[:5]), default=0)
+        grounded = has_sources and top_score >= settings.CONFIDENCE_THRESHOLD_MEDIUM
+
+        suggested = _generate_suggested_questions(request.message, reranked)
+
         metadata = json.dumps({
             "type": "metadata",
             "sources": [{
@@ -132,6 +165,8 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
             "confidence": confidence,
             "conversation_id": conversation_id,
             "processing_time_ms": round(processing_time, 1),
+            "grounded": grounded,
+            "suggested_questions": suggested,
         })
         yield f"data: {metadata}\n\n"
 
@@ -154,6 +189,11 @@ async def chat(request: ChatRequest, fastapi_request: Request, user: dict = Depe
     conv = await a_get_conversation(conversation_id)
     if not conv:
         await a_create_conversation(conversation_id, user["id"])
+
+    was_new = not conv
+    if was_new:
+        title = request.message[:80] + ("..." if len(request.message) > 80 else "")
+        await a_update_conversation_title(conversation_id, title)
 
     history = await a_get_conversation_messages(conversation_id)
 

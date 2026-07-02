@@ -110,6 +110,12 @@ def init_db():
                 conn.commit()
             except Exception:
                 pass
+    for col in ["title TEXT DEFAULT ''"]:
+        try:
+            conn.execute(f"ALTER TABLE conversations ADD COLUMN {col}")
+            conn.commit()
+        except Exception:
+            pass
     conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_hash ON documents(file_hash)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_status ON documents(status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id)")
@@ -181,12 +187,17 @@ def delete_document(doc_id: str):
         conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
 
 
-def create_conversation(conv_id: str, user_id: str = "") -> dict:
+def create_conversation(conv_id: str, user_id: str = "", title: str = "") -> dict:
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
-        conn.execute("INSERT INTO conversations (id, created_at, updated_at, user_id) VALUES (?, ?, ?, ?)",
-                     (conv_id, now, now, user_id))
-    return {"id": conv_id, "created_at": now, "updated_at": now, "message_count": 0, "user_id": user_id}
+        conn.execute("INSERT INTO conversations (id, created_at, updated_at, user_id, title) VALUES (?, ?, ?, ?, ?)",
+                     (conv_id, now, now, user_id, title))
+    return {"id": conv_id, "created_at": now, "updated_at": now, "message_count": 0, "user_id": user_id, "title": title}
+
+
+def update_conversation_title(conv_id: str, title: str):
+    with get_db() as conn:
+        conn.execute("UPDATE conversations SET title = ? WHERE id = ?", (title, conv_id))
 
 
 def get_conversation(conv_id: str) -> Optional[dict]:
@@ -300,6 +311,11 @@ async def a_create_conversation(*a, **kw):
         return await asyncio.to_thread(create_conversation, *a, **kw)
 
 
+async def a_update_conversation_title(*a, **kw):
+    async with _async_lock:
+        return await asyncio.to_thread(update_conversation_title, *a, **kw)
+
+
 async def a_get_conversation(*a, **kw):
     return await asyncio.to_thread(get_conversation, *a, **kw)
 
@@ -326,11 +342,21 @@ async def a_log_feedback(*a, **kw):
 def list_user_conversations(user_id: str) -> list[dict]:
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT id, created_at, updated_at, message_count
-            FROM conversations WHERE user_id = ?
-            ORDER BY updated_at DESC LIMIT 50
+            SELECT c.id, c.created_at, c.updated_at, c.message_count, c.title,
+                   (SELECT content FROM messages WHERE conversation_id = c.id AND role = 'user' ORDER BY id ASC LIMIT 1) as first_message
+            FROM conversations c WHERE c.user_id = ?
+            ORDER BY c.updated_at DESC LIMIT 50
         """, (user_id,)).fetchall()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        if not d.get("title") and d.get("first_message"):
+            d["title"] = d["first_message"][:80] + ("..." if len(d["first_message"]) > 80 else "")
+        elif not d.get("title"):
+            d["title"] = "New conversation"
+        d.pop("first_message", None)
+        result.append(d)
+    return result
 
 
 def delete_conversation(conv_id: str):
