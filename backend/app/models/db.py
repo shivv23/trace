@@ -321,3 +321,50 @@ async def a_update_message_feedback(*a, **kw):
 async def a_log_feedback(*a, **kw):
     async with _async_lock:
         return await asyncio.to_thread(log_feedback, *a, **kw)
+
+
+def list_user_conversations(user_id: str) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, created_at, updated_at, message_count
+            FROM conversations WHERE user_id = ?
+            ORDER BY updated_at DESC LIMIT 50
+        """, (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_conversation(conv_id: str):
+    with get_db() as conn:
+        conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
+        conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
+
+
+def get_admin_stats() -> dict:
+    with get_db() as conn:
+        user_count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+        doc_count = conn.execute("SELECT COUNT(*) as c FROM documents WHERE status='ready'").fetchone()["c"]
+        conv_count = conn.execute("SELECT COUNT(*) as c FROM conversations").fetchone()["c"]
+        msg_count = conn.execute("SELECT COUNT(*) as c FROM messages").fetchone()["c"]
+        fb_count = conn.execute("SELECT COUNT(*) as c FROM feedback_log").fetchone()["c"]
+        total_tokens = conn.execute("SELECT COALESCE(SUM(LENGTH(content)), 0) as c FROM messages WHERE role='assistant'").fetchone()["c"]
+    return {
+        "users": user_count,
+        "documents": doc_count,
+        "conversations": conv_count,
+        "messages": msg_count,
+        "feedback_entries": fb_count,
+        "total_output_chars": total_tokens,
+    }
+
+
+async def a_list_user_conversations(*a, **kw):
+    return await asyncio.to_thread(list_user_conversations, *a, **kw)
+
+
+async def a_delete_conversation(*a, **kw):
+    async with _async_lock:
+        return await asyncio.to_thread(delete_conversation, *a, **kw)
+
+
+async def a_get_admin_stats(*a, **kw):
+    return await asyncio.to_thread(get_admin_stats, *a, **kw)

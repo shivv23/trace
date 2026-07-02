@@ -4,14 +4,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.models.db import init_db, list_documents, delete_document as db_delete_doc, create_user, get_user_by_username
 from app.core.embeddings import EmbeddingProvider, get_embedding_provider
-from app.core.auth import hash_password
+from app.core.auth import hash_password, get_current_user
 from app.api.chat import router as chat_router, init_chat_engine
 from app.api.documents import router as documents_router, init_document_engine, set_retriever_ref
 from app.api.feedback import router as feedback_router
@@ -163,6 +163,14 @@ app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(documents_router)
 app.include_router(feedback_router)
+
+
+@app.get("/api/admin/stats")
+async def admin_stats(user: dict = Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from app.models.db import a_get_admin_stats
+    return await a_get_admin_stats()
 
 
 @app.get("/api/health")

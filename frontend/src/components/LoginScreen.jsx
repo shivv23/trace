@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bot, LogIn, User, Lock, AlertCircle, Loader2 } from 'lucide-react'
+import { Bot, LogIn, User, Lock, AlertCircle, Loader2, UserPlus } from 'lucide-react'
+import { login as apiLogin, register as apiRegister } from '../utils/api'
 
 export default function LoginScreen({ onLogin }) {
+  const [mode, setMode] = useState('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -14,11 +16,14 @@ export default function LoginScreen({ onLogin }) {
     setLoading(true)
     setError(null)
     try {
-      const { login } = await import('../utils/api')
-      await login(username, password)
+      if (mode === 'login') {
+        await apiLogin(username.trim(), password)
+      } else {
+        await apiRegister(username.trim(), password)
+      }
       onLogin()
     } catch (err) {
-      setError(err?.message || 'Login failed')
+      setError(err?.message || 'Action failed')
     } finally {
       setLoading(false)
     }
@@ -93,12 +98,23 @@ export default function LoginScreen({ onLogin }) {
             >
               {loading ? (
                 <Loader2 size={18} className="animate-spin" />
-              ) : (
+              ) : mode === 'login' ? (
                 <LogIn size={18} />
+              ) : (
+                <UserPlus size={18} />
               )}
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
             </motion.button>
           </form>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null) }}
+              className="text-xs text-surface-400 hover:text-trace-400 transition-colors"
+            >
+              {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

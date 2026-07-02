@@ -1,6 +1,7 @@
 import os
+import json
 import logging
-from typing import Optional
+from typing import Optional, Generator
 
 from app.config import settings
 from app.utils.pii import redact_pii
@@ -48,6 +49,86 @@ Question: {query}
 Answer:"""
 
     return prompt
+
+
+def _stream_groq(prompt: str) -> Generator[str, None, None]:
+    api_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return
+    try:
+        from groq import Groq
+        client = Groq(api_key=api_key, timeout=30.0)
+        stream = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=settings.LLM_TEMPERATURE,
+            max_tokens=settings.LLM_MAX_TOKENS,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content if chunk.choices else ""
+            if delta:
+                yield delta
+    except Exception as e:
+        logger.error("Groq streaming error", exc_info=True)
+        yield None
+
+
+def _stream_gemini(prompt: str) -> Generator[str, None, None]:
+    api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return
+    try:
+        from google import genai as new_genai
+        from google.genai import types
+        client = new_genai.Client(api_key=api_key, http_options={"timeout": 30 * 1000})
+        config = types.GenerateContentConfig(
+            temperature=settings.LLM_TEMPERATURE,
+            max_output_tokens=settings.LLM_MAX_TOKENS,
+            top_p=0.9,
+        )
+        stream = client.models.generate_content_stream(
+            model=settings.GEMINI_MODEL,
+            contents=prompt,
+            config=config,
+        )
+        for chunk in stream:
+            if chunk.text:
+                yield chunk.text
+    except Exception as e:
+        logger.error("Gemini streaming error", exc_info=True)
+        yield None
+
+
+def stream_answer(query: str, context_chunks: list[dict], conversation_history: list = None) -> Generator[str, None, None]:
+    if not context_chunks:
+        yield json.dumps({"type": "error", "message": "No relevant information found."})
+        return
+
+    prompt = _build_prompt(query, context_chunks, conversation_history)
+    provider = settings.LLM_PROVIDER
+    streamer = None
+
+    if provider == "gemini":
+        streamer = _stream_gemini(prompt)
+    elif provider == "groq":
+        streamer = _stream_groq(prompt)
+
+    if streamer is None:
+        fallback = _generate_fallback(query, context_chunks)
+        yield json.dumps({"type": "token", "text": fallback})
+        yield json.dumps({"type": "done"})
+        return
+
+    for token in streamer:
+        if token is None:
+            fallback = _generate_fallback(query, context_chunks)
+            yield json.dumps({"type": "token", "text": fallback})
+            yield json.dumps({"type": "done"})
+            return
+        yield json.dumps({"type": "token", "text": redact_pii(token)})
+
+    yield json.dumps({"type": "done"})
 
 
 def _call_gemini(prompt: str) -> Optional[str]:

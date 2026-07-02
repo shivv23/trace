@@ -6,10 +6,10 @@ import { listDocuments } from '../utils/api'
 import MessageBubble from './MessageBubble'
 import TypingIndicator from './TypingIndicator'
 
-export default function ChatWidget() {
+export default function ChatWidget({ conversationId, onConversationSaved }) {
   const [input, setInput] = useState('')
   const [docNames, setDocNames] = useState([])
-  const { messages, isLoading, error, send, rateMessage, clear } = useChat()
+  const { messages, isLoading, error, send, rateMessage, clear, loadConversation } = useChat()
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -28,6 +28,35 @@ export default function ChatWidget() {
   useEffect(() => {
     listDocuments().then(docs => setDocNames(docs.map(d => d.name))).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (conversationId) {
+      loadConversation(conversationId)
+    }
+  }, [conversationId])
+
+  useEffect(() => {
+    const handler = () => {
+      clear()
+    }
+    window.addEventListener('trace-new-chat', handler)
+    return () => window.removeEventListener('trace-new-chat', handler)
+  }, [clear])
+
+  useEffect(() => {
+    const handler = (e) => {
+      loadConversation(e.detail.conversationId)
+    }
+    window.addEventListener('trace-load-conversation', handler)
+    return () => window.removeEventListener('trace-load-conversation', handler)
+  }, [loadConversation])
+
+  useEffect(() => {
+    if (messages.length > 0 && !isLoading) {
+      window.dispatchEvent(new CustomEvent('trace-conversation-saved'))
+      if (onConversationSaved) onConversationSaved()
+    }
+  }, [messages.length, isLoading])
 
   const suggestions = docNames.length > 0
     ? [
@@ -72,19 +101,21 @@ export default function ChatWidget() {
               Upload documents to the knowledge base, then ask questions.
               Trace will search, cite sources, and show confidence for every answer.
             </p>
-            <div className="flex flex-wrap gap-2 justify-center mt-6">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => { send(suggestion); setInput('') }}
-                  className="px-3 py-1.5 text-xs rounded-full bg-surface-800/60 border border-surface-700/30
-                    text-surface-300 hover:text-white hover:border-trace-500/30 hover:bg-trace-500/5
-                    transition-all duration-200"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
+            {!conversationId && (
+              <div className="flex flex-wrap gap-2 justify-center mt-6">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => { send(suggestion); setInput('') }}
+                    className="px-3 py-1.5 text-xs rounded-full bg-surface-800/60 border border-surface-700/30
+                      text-surface-300 hover:text-white hover:border-trace-500/30 hover:bg-trace-500/5
+                      transition-all duration-200"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
           </motion.div>
         </div>
       ) : (

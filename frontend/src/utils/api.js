@@ -149,6 +149,22 @@ export async function submitFeedback(conversationId, messageIndex, rating, corre
   })
 }
 
+export async function listConversations() {
+  return request('/chat/conversations/list')
+}
+
+export async function getConversationHistory(conversationId) {
+  return request(`/chat/${conversationId}`)
+}
+
+export async function deleteConversation(conversationId) {
+  return request(`/chat/${conversationId}`, { method: 'DELETE' })
+}
+
+export async function getAdminStats() {
+  return request('/admin/stats')
+}
+
 export async function healthCheck() {
   return request('/health')
 }
