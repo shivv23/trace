@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-surface-700/50;
+  }
+
+  body {
+    @apply bg-surface-950 text-surface-50;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    @apply bg-trace-500/30 text-white;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-700/50 rounded-full hover:bg-surface-600/50 transition-colors;
+  }
+
+  input, textarea {
+    @apply outline-none;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-surface-800/40 backdrop-blur-xl border border-surface-700/30 shadow-xl;
+  }
+
+  .glass-panel-solid {
+    @apply bg-surface-800/80 backdrop-blur-xl border border-surface-700/40 shadow-xl;
+  }
+
+  .glow-indigo {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.15),
+                0 0 40px rgba(99, 102, 241, 0.05);
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-trace-400 via-trace-300 to-purple-400 bg-clip-text text-transparent;
+  }
+
+  .message-enter {
+    animation: messageSlide 0.3s ease-out;
+  }
+
+  @keyframes messageSlide {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .typing-dot {
+    @apply w-2 h-2 rounded-full bg-trace-400;
+    animation: typingBounce 1.4s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-8px); opacity: 1; }
+  }
+
+  .confidence-ring {
+    transition: stroke-dashoffset 1s ease-in-out;
+  }
+
+  .source-card {
+    @apply relative overflow-hidden;
+  }
+
+  .source-card::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), transparent);
+  }
+
+  .source-card:hover::before {
+    @apply opacity-100;
+  }
+
+  .upload-zone {
+    @apply border-2 border-dashed border-surface-600/50 rounded-xl
+           transition-all duration-300 ease-out;
+  }
+
+  .upload-zone:hover, .upload-zone.active {
+    @apply border-trace-500/50 bg-trace-500/5;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
