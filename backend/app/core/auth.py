@@ -43,4 +43,5 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(_
     user = await a_get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    user.pop("hashed_password", None)
     return user

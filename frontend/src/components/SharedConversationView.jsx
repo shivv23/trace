@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Bot, User, Clock, AlertCircle, Share2 } from 'lucide-react'
 import { getSharedConversation } from '../utils/api'
@@ -17,9 +17,11 @@ export default function SharedConversationView({ shareId, onBack }) {
       .finally(() => setLoading(false))
   }, [shareId])
 
+  const [copied, setCopied] = useState(false)
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href)
-      .then(() => alert('Link copied!'))
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
       .catch(() => {})
   }
 
@@ -68,7 +70,7 @@ export default function SharedConversationView({ shareId, onBack }) {
           </div>
           <button onClick={handleCopyLink} className="flex items-center gap-1.5 px-3 py-1.5 bg-trace-600/20 text-trace-400 text-xs rounded-lg hover:bg-trace-600/30 transition-colors">
             <Share2 size={12} />
-            Copy link
+            {copied ? 'Copied!' : 'Copy link'}
           </button>
         </div>
 
