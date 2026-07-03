@@ -200,6 +200,11 @@ def update_conversation_title(conv_id: str, title: str):
         conn.execute("UPDATE conversations SET title = ? WHERE id = ?", (title, conv_id))
 
 
+def rename_conversation(conv_id: str, title: str, user_id: str):
+    with get_db() as conn:
+        conn.execute("UPDATE conversations SET title = ? WHERE id = ? AND user_id = ?", (title, conv_id, user_id))
+
+
 def get_conversation(conv_id: str) -> Optional[dict]:
     with get_db() as conn:
         row = conn.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,)).fetchone()
@@ -410,6 +415,11 @@ async def a_list_user_conversations(*a, **kw):
 async def a_delete_conversation(*a, **kw):
     async with _async_lock:
         return await asyncio.to_thread(delete_conversation, *a, **kw)
+
+
+async def a_rename_conversation(*a, **kw):
+    async with _async_lock:
+        return await asyncio.to_thread(rename_conversation, *a, **kw)
 
 
 async def a_get_admin_stats(*a, **kw):

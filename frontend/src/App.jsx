@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity, Search, Settings, Share2, Globe, ThumbsUp } from 'lucide-react'
+import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity, Search, Settings, Share2, Globe, ThumbsUp, RefreshCw, Keyboard } from 'lucide-react'
 import ChatWidget from './components/ChatWidget'
 import WelcomeScreen from './components/WelcomeScreen'
 import LoginScreen from './components/LoginScreen'
 import SearchModal from './components/SearchModal'
 import SettingsModal from './components/SettingsModal'
 import SharedConversationView from './components/SharedConversationView'
-import { healthCheck, getStoredUser, isAuthenticated, logout, listConversations, deleteConversation, getAdminStats, getFeedbackStats, shareConversation, unshareConversation } from './utils/api'
+import ShortcutsHelp from './components/ShortcutsHelp'
+import { healthCheck, getStoredUser, isAuthenticated, logout, listConversations, deleteConversation, getAdminStats, getFeedbackStats, shareConversation, unshareConversation, renameConversation } from './utils/api'
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -22,9 +23,12 @@ export default function App() {
   const [adminStats, setAdminStats] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [feedbackStats, setFeedbackStats] = useState(null)
   const [sharingConvId, setSharingConvId] = useState(null)
   const [sharedUrl, setSharedUrl] = useState('')
+  const [renamingId, setRenamingId] = useState(null)
+  const [renameValue, setRenameValue] = useState('')
 
   const pathShareId = window.location.pathname.match(/^\/shared\/([a-f0-9]+)/i)?.[1]
 
@@ -105,6 +109,35 @@ export default function App() {
     window.dispatchEvent(new CustomEvent('trace-new-chat'))
   }
 
+  const handleStartRename = (e, conv) => {
+    e.stopPropagation()
+    setRenamingId(conv.id)
+    setRenameValue(conv.title || '')
+  }
+
+  const handleFinishRename = async (convId) => {
+    const title = renameValue.trim()
+    if (!title || title.length < 1) {
+      setRenamingId(null)
+      return
+    }
+    try {
+      await renameConversation(convId, title)
+      setConversations(prev => prev.map(c => c.id === convId ? { ...c, title } : c))
+    } catch {}
+    setRenamingId(null)
+  }
+
+  const handleRenameKeyDown = (e, convId) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleFinishRename(convId)
+    }
+    if (e.key === 'Escape') {
+      setRenamingId(null)
+    }
+  }
+
   const handleSelectConversation = (convId) => {
     setActiveConvId(convId)
     setShowWelcome(false)
@@ -135,6 +168,14 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         setSearchOpen(true)
+      }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.target.closest('input,textarea')) {
+        e.preventDefault()
+        setShortcutsOpen(true)
+      }
+      if (e.key === 'Escape') {
+        setRenamingId(null)
+        setRenameValue('')
       }
     }
     window.addEventListener('keydown', handler)
@@ -192,6 +233,13 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShortcutsOpen(true)}
+            className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors hidden sm:block"
+            title="Keyboard shortcuts (?)"
+          >
+            <Keyboard size={15} />
+          </button>
           <button
             onClick={() => setSearchOpen(true)}
             className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-colors hidden sm:block"
@@ -305,9 +353,24 @@ export default function App() {
                         >
                           <MessageSquare size={14} className="mt-0.5 shrink-0 text-surface-500" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-surface-300 truncate font-medium">
-                              {conv.title || 'New conversation'}
-                            </p>
+                            {renamingId === conv.id ? (
+                              <input
+                                autoFocus
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onBlur={() => handleFinishRename(conv.id)}
+                                onKeyDown={(e) => handleRenameKeyDown(e, conv.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full bg-surface-800 border border-trace-500/40 rounded px-2 py-0.5 text-xs text-white outline-none"
+                              />
+                            ) : (
+                              <p
+                                className="text-xs text-surface-300 truncate font-medium"
+                                onDoubleClick={(e) => handleStartRename(e, conv)}
+                              >
+                                {conv.title || 'New conversation'}
+                              </p>
+                            )}
                             <p className="text-[10px] text-surface-600 truncate mt-0.5">
                               {conv.message_count > 0 ? `${conv.message_count} messages` : 'Empty chat'}
                             </p>
@@ -466,6 +529,10 @@ export default function App() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+      <ShortcutsHelp
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
     </div>
   )
 }
@@ -484,23 +551,54 @@ function StatCard({ icon, label, value }) {
 
 function KnowledgePanelContent() {
   const [docs, setDocs] = useState([])
-  useEffect(() => {
+  const [deleting, setDeleting] = useState(null)
+  const load = () => {
     import('./utils/api').then(({ listDocuments }) => {
       listDocuments().then(setDocs).catch(() => {})
     })
-  }, [])
+  }
+  useEffect(load, [])
+
+  const handleDelete = async (docId) => {
+    setDeleting(docId)
+    try {
+      const { deleteDocument } = await import('./utils/api')
+      await deleteDocument(docId)
+      load()
+    } catch {}
+    setDeleting(null)
+  }
+
   if (docs.length === 0) {
     return <p className="text-xs text-surface-500 text-center py-8">No documents uploaded</p>
   }
   return (
     <div className="space-y-2">
       {docs.map((doc) => (
-        <div key={doc.id} className="glass-panel rounded-xl px-3 py-2.5">
-          <p className="text-xs text-surface-300 truncate">{doc.name}</p>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="text-[10px] text-surface-600">{doc.type}</span>
-            <span className="text-[10px] text-surface-600">{doc.chunk_count} chunks</span>
-            <span className="text-[10px] text-surface-600">{Math.round(doc.size_bytes / 1024)}KB</span>
+        <div key={doc.id} className="group glass-panel rounded-xl px-3 py-2.5 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-surface-300 truncate">{doc.name}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-[10px] text-surface-600">{doc.type}</span>
+                <span className="text-[10px] text-surface-600">{doc.chunk_count} chunks</span>
+                <span className="text-[10px] text-surface-600">{Math.round(doc.size_bytes / 1024)}KB</span>
+              </div>
+            </div>
+            <button
+              onClick={() => handleDelete(doc.id)}
+              disabled={deleting === doc.id}
+              className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 bg-surface-800/50 hover:bg-red-500/20
+                text-surface-500 hover:text-red-400 border border-surface-700/20 hover:border-red-500/30
+                transition-all duration-200 shrink-0 disabled:opacity-50"
+              title="Delete document"
+            >
+              {deleting === doc.id ? (
+                <RefreshCw size={12} className="animate-spin" />
+              ) : (
+                <Trash2 size={12} />
+              )}
+            </button>
           </div>
         </div>
       ))}

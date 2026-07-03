@@ -8,26 +8,85 @@ import SourceCard from './SourceCard'
 import FeedbackButtons from './FeedbackButtons'
 import clsx from 'clsx'
 
+function CitationLink({ idx, activeIdx, onClick, children }) {
+  const isActive = activeIdx === idx
+  return (
+    <button
+      onClick={(e) => { e.preventDefault(); onClick(idx) }}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium transition-all duration-200 mx-0.5 align-middle ${
+        isActive
+          ? 'bg-trace-500/25 text-trace-300 border border-trace-500/40 scale-105 shadow-sm shadow-trace-500/10'
+          : 'bg-surface-800/60 text-surface-400 border border-surface-700/30 hover:bg-trace-500/10 hover:text-trace-400'
+      }`}
+    >
+      [{idx + 1}]
+    </button>
+  )
+}
+
+function renderContentWithCitations(content, activeIdx, onSourceClick) {
+  const parts = content.split(/(\[Source \d+\])/g)
+  return parts.map((part, i) => {
+    const match = part.match(/\[Source (\d+)\]/)
+    if (match) {
+      const idx = parseInt(match[1]) - 1
+      return (
+        <CitationLink key={`cite-${i}`} idx={idx} activeIdx={activeIdx} onClick={onSourceClick}>
+          {match[1]}
+        </CitationLink>
+      )
+    }
+    if (!part) return null
+    return (
+      <ReactMarkdown
+        key={`md-${i}`}
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer"
+              className="text-trace-400 hover:text-trace-300 underline underline-offset-2">
+              {children} <ExternalLink size={12} className="inline" />
+            </a>
+          ),
+          code: ({ children }) => (
+            <code className="bg-surface-800/60 px-1.5 py-0.5 rounded text-[13px] font-mono text-trace-300">
+              {children}
+            </code>
+          ),
+          p: ({ children }) => <span className="inline">{children}</span>,
+        }}
+      >
+        {part}
+      </ReactMarkdown>
+    )
+  })
+}
+
+
 export default function MessageBubble({ message, onRate, onSuggestedClick }) {
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
+  const [activeCitation, setActiveCitation] = useState(null)
   const isUser = message.role === 'user'
   const hasSources = message.sources && message.sources.length > 0
   const hasSuggestions = message.suggestedQuestions && message.suggestedQuestions.length > 0
   const isUngrounded = !isUser && message.grounded === false && hasSources
 
   const handleExport = () => {
-    const allMessages = []
-    if (message.suggestedQuestions) {
-    }
     const text = `**${message.role === 'user' ? 'You' : 'Trace'}**: ${message.content}`
-    allMessages.push(text)
-    const blob = new Blob([allMessages.join('\n\n')], { type: 'text/markdown' })
+    const blob = new Blob([text], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = `trace-message-${Date.now()}.md`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleCitationClick = (idx) => {
+    setActiveCitation(activeCitation === idx ? null : idx)
+    if (hasSources && message.sources[idx]) {
+      setSourcesExpanded(true)
+    }
   }
 
   return (
@@ -68,25 +127,8 @@ export default function MessageBubble({ message, onRate, onSuggestedClick }) {
           {isUser ? (
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
           ) : (
-            <div className="prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  a: ({ href, children }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer"
-                      className="text-trace-400 hover:text-trace-300 underline underline-offset-2">
-                      {children} <ExternalLink size={12} className="inline" />
-                    </a>
-                  ),
-                  code: ({ children }) => (
-                    <code className="bg-surface-800/60 px-1.5 py-0.5 rounded text-[13px] font-mono text-trace-300">
-                      {children}
-                    </code>
-                  ),
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
+            <div className="prose prose-invert prose-sm max-w-none [&>p]:mb-0">
+              {renderContentWithCitations(message.content, activeCitation, handleCitationClick)}
             </div>
           )}
         </div>
@@ -144,7 +186,7 @@ export default function MessageBubble({ message, onRate, onSuggestedClick }) {
                 <AnimateSection expanded={sourcesExpanded}>
                   <div className="space-y-1.5 mt-1.5">
                     {message.sources.map((source, idx) => (
-                      <SourceCard key={source.chunk_id} source={source} index={idx} />
+                      <SourceCard key={source.chunk_id} source={source} index={idx} isActive={activeCitation === idx} />
                     ))}
                   </div>
                 </AnimateSection>

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Sparkles, RefreshCw } from 'lucide-react'
+import { Send, Sparkles, RefreshCw, Download } from 'lucide-react'
 import { useChat } from '../hooks/useChat'
 import { listDocuments } from '../utils/api'
 import MessageBubble from './MessageBubble'
@@ -77,6 +77,22 @@ export default function ChatWidget({ conversationId, onConversationSaved }) {
     setInput('')
   }
 
+  const handleExportAll = () => {
+    if (messages.length === 0) return
+    const lines = messages.map((m) => {
+      const role = m.role === 'user' ? 'You' : 'Trace'
+      return `**${role}**:\n${m.content}\n`
+    })
+    const text = `# Trace Conversation Export\n\n*Exported ${new Date().toLocaleString()}*\n\n---\n\n${lines.join('\n')}`
+    const blob = new Blob([text], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `trace-conversation-${Date.now()}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleSuggestedClick = (question) => {
     send(question)
     setInput('')
@@ -91,6 +107,20 @@ export default function ChatWidget({ conversationId, onConversationSaved }) {
 
   return (
     <div className="flex flex-col h-full">
+      {messages.length > 0 && (
+        <div className="absolute top-3 right-4 z-10">
+          <button
+            onClick={handleExportAll}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-800/60 border border-surface-700/30
+              text-surface-400 hover:text-white hover:border-surface-600/50 text-[10px] transition-all duration-200"
+            title="Export conversation as markdown"
+          >
+            <Download size={12} />
+            Export
+          </button>
+        </div>
+      )}
+
       {messages.length === 0 && !isLoading ? (
         <div className="flex-1 flex items-center justify-center px-4">
           <motion.div

@@ -187,6 +187,13 @@ export async function getFeedbackStats() {
   return request('/admin/feedback-stats')
 }
 
+export async function renameConversation(conversationId, title) {
+  return request(`/chat/${conversationId}/rename`, {
+    method: 'PUT',
+    body: { title },
+  })
+}
+
 export async function changePassword(currentPassword, newPassword) {
   return request('/auth/change-password', {
     method: 'POST',

@@ -5,6 +5,7 @@ import asyncio
 import logging
 from collections import deque
 from fastapi import APIRouter, HTTPException, Request, Depends
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 
 from app.config import settings
@@ -308,7 +309,7 @@ async def get_history(conversation_id: str, user: dict = Depends(get_current_use
     return {"conversation_id": conversation_id, "messages": messages}
 
 
-from app.models.db import a_list_user_conversations, a_delete_conversation, a_set_share_id, a_clear_share_id, a_get_conversation_by_share_id, migrate_add_share_id
+from app.models.db import a_list_user_conversations, a_delete_conversation, a_set_share_id, a_clear_share_id, a_get_conversation_by_share_id, migrate_add_share_id, a_rename_conversation
 
 
 @router.get("/search")
@@ -340,6 +341,21 @@ async def unshare_conversation(conversation_id: str, user: dict = Depends(get_cu
         raise HTTPException(status_code=403, detail="Access denied")
     await a_clear_share_id(conversation_id)
     return {"success": True}
+
+
+class RenameRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+@router.put("/{conversation_id}/rename")
+async def rename_conversation_endpoint(conversation_id: str, req: RenameRequest, user: dict = Depends(get_current_user)):
+    conv = await a_get_conversation(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conv.get("user_id") and conv["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    await a_rename_conversation(conversation_id, req.title.strip(), user["id"])
+    return {"success": True, "title": req.title.strip()}
 
 
 @router.get("/conversations/list")

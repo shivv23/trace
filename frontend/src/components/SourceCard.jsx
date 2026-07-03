@@ -1,15 +1,23 @@
-import React, { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FileText, ChevronDown, ChevronUp, Percent } from 'lucide-react'
 import clsx from 'clsx'
 
-export default function SourceCard({ source, index }) {
+export default function SourceCard({ source, index, isActive }) {
   const [expanded, setExpanded] = useState(false)
   const score = source.relevance_score || 0
   const normalizedScore = typeof score === 'number'
     ? Math.max(0, Math.min(1, (score + 1) / 2))
     : 0.5
   const scorePercent = Math.round(normalizedScore * 100)
+
+  const cardRef = useRef(null)
+
+  useEffect(() => {
+    if (isActive && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [isActive])
 
   function getFileIcon(type) {
     switch (type?.toLowerCase()) {
@@ -31,16 +39,21 @@ export default function SourceCard({ source, index }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       className="source-card group"
+      ref={cardRef}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-start gap-2.5 px-3 py-2 rounded-lg
-          bg-surface-800/30 border border-surface-700/20
-          hover:bg-surface-800/60 hover:border-surface-700/40
-          transition-all duration-200 text-left"
+        className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-all duration-200 ${
+          isActive
+            ? 'bg-trace-500/15 border-trace-500/40 shadow-sm shadow-trace-500/10'
+            : 'bg-surface-800/30 border-surface-700/20 hover:bg-surface-800/60 hover:border-surface-700/40'
+        } border`}
       >
-        <div className="w-7 h-7 rounded-md bg-trace-500/10 border border-trace-500/20
-          flex items-center justify-center shrink-0 mt-0.5">
+        <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-all duration-200 ${
+          isActive
+            ? 'bg-trace-500/20 border-trace-500/40'
+            : 'bg-trace-500/10 border-trace-500/20'
+        } border`}>
           <span className="text-[10px] font-bold text-trace-400">{getFileIcon(source.file_type)}</span>
         </div>
 
