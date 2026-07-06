@@ -1,5 +1,6 @@
 import uuid
 import time
+import asyncio
 import logging
 from collections import deque
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -12,20 +13,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 _auth_rate_limit: dict[str, deque] = {}
+_auth_rate_limit_lock = asyncio.Lock()
 _AUTH_RATE_LIMIT = 10
 
 
-def _check_auth_rate_limit(client_ip: str):
+async def _check_auth_rate_limit(client_ip: str):
     now = time.monotonic()
-    bucket = _auth_rate_limit.get(client_ip)
-    if bucket is None:
-        bucket = deque()
-        _auth_rate_limit[client_ip] = bucket
-    while bucket and now - bucket[0] > 60:
-        bucket.popleft()
-    if len(bucket) >= _AUTH_RATE_LIMIT:
-        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
-    bucket.append(now)
+    async with _auth_rate_limit_lock:
+        _evict_stale_auth_buckets()
+        bucket = _auth_rate_limit.get(client_ip)
+        if bucket is None:
+            bucket = deque()
+            _auth_rate_limit[client_ip] = bucket
+        while bucket and now - bucket[0] > 60:
+            bucket.popleft()
+        if len(bucket) >= _AUTH_RATE_LIMIT:
+            raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+        bucket.append(now)
+
+
+def _evict_stale_auth_buckets():
+    cutoff = time.monotonic() - 120
+    stale = [ip for ip, bucket in _auth_rate_limit.items() if not bucket or bucket[-1] < cutoff]
+    for ip in stale:
+        del _auth_rate_limit[ip]
 
 
 class RegisterRequest(BaseModel):
@@ -47,7 +58,7 @@ class AuthResponse(BaseModel):
 
 @router.post("/register")
 async def register(req: RegisterRequest, fastapi_request: Request):
-    _check_auth_rate_limit(fastapi_request.client.host if fastapi_request.client else "unknown")
+    await _check_auth_rate_limit(fastapi_request.client.host if fastapi_request.client else "unknown")
     existing = await a_get_user_by_username(req.username)
     if existing:
         raise HTTPException(status_code=409, detail="Username already taken")
@@ -60,7 +71,7 @@ async def register(req: RegisterRequest, fastapi_request: Request):
 
 @router.post("/login")
 async def login(req: LoginRequest, fastapi_request: Request):
-    _check_auth_rate_limit(fastapi_request.client.host if fastapi_request.client else "unknown")
+    await _check_auth_rate_limit(fastapi_request.client.host if fastapi_request.client else "unknown")
     user = await a_get_user_by_username(req.username)
     if not user or not verify_password(req.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")

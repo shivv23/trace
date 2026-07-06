@@ -26,9 +26,8 @@ def compute_confidence(query: str, results: list[dict], top_k: int = 5) -> dict:
 
     relevance_scores = [r.get("rerank_score", r.get("combined_score", 0)) for r in top_results]
     relevance_score = float(np.mean(relevance_scores)) if relevance_scores else 0.0
-    relevance_score = _sigmoid(relevance_score)
 
-    support_count = sum(1 for s in relevance_scores if _sigmoid(s) > 0.5)
+    support_count = sum(1 for s in relevance_scores if s > 0.3)
     support_ratio = support_count / top_k
 
     semantic_similarity = relevance_score

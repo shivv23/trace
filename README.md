@@ -110,7 +110,7 @@ Visit `http://localhost:3000` — login with the admin credentials, then upload 
 docker-compose up --build
 ```
 
-Visit `http://localhost:8000`.
+Visit `http://localhost:8080`.
 
 ---
 

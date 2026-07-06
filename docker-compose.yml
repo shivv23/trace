@@ -12,7 +12,7 @@ services:
       - DEBUG=false
     volumes:
       - trace_data:/app/app/data
-      - frontend_dist:/app/frontend/dist
+      - frontend_dist:/frontend/dist
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

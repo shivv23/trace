@@ -146,6 +146,7 @@ export default function App() {
 
   const handleDeleteConversation = async (e, convId) => {
     e.stopPropagation()
+    if (!window.confirm('Delete this conversation permanently?')) return
     try {
       await deleteConversation(convId)
       setConversations(prev => prev.filter(c => c.id !== convId))
@@ -560,6 +561,7 @@ function KnowledgePanelContent() {
   useEffect(load, [])
 
   const handleDelete = async (docId) => {
+    if (!window.confirm('Delete this document from the knowledge base?')) return
     setDeleting(docId)
     try {
       const { deleteDocument } = await import('./utils/api')

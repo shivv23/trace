@@ -136,14 +136,14 @@ def stream_answer(query: str, context_chunks: list[dict], conversation_history: 
         streamer = _stream_groq(prompt)
 
     if streamer is None:
-        fallback = _generate_fallback(query, context_chunks)
+        fallback = redact_pii(_generate_fallback(query, context_chunks))
         yield json.dumps({"type": "token", "text": fallback})
         yield json.dumps({"type": "done"})
         return
 
     for token in streamer:
         if token is None:
-            fallback = _generate_fallback(query, context_chunks)
+            fallback = redact_pii(_generate_fallback(query, context_chunks))
             yield json.dumps({"type": "token", "text": fallback})
             yield json.dumps({"type": "done"})
             return

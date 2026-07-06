@@ -231,8 +231,12 @@ async def health_check():
     }
 
 
-frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
-if frontend_dir.exists():
+frontend_candidates = [
+    Path(__file__).resolve().parent.parent.parent / "frontend" / "dist",
+    Path("/app/frontend/dist"),
+]
+frontend_dir = next((d for d in frontend_candidates if d.exists()), None)
+if frontend_dir:
     app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 
 
