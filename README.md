@@ -117,17 +117,27 @@ Visit `http://localhost:8080`.
 ## API Endpoints
 
 | Method | Path | Auth | Description |
-|---|---|---|---|
+|---|---|---|---|---|
 | `GET` | `/api/health` | No | System health check |
 | `POST` | `/api/auth/register` | No | Create new account |
 | `POST` | `/api/auth/login` | No | Get JWT token |
+| `POST` | `/api/auth/change-password` | Yes | Change account password |
 | `GET` | `/api/auth/me` | Yes | Current user info |
-| `POST` | `/api/chat` | Yes | Send a message and get AI response |
+| `POST` | `/api/chat` | Yes | Send a message (non-streaming) |
+| `POST` | `/api/chat/stream` | Yes | Send a message with SSE streaming |
 | `GET` | `/api/chat/{id}` | Yes | Get conversation history |
+| `GET` | `/api/chat/search?q=` | Yes | Search message content |
+| `PUT` | `/api/chat/{id}/rename` | Yes | Rename a conversation |
+| `POST` | `/api/chat/{id}/share` | Yes | Create shareable link |
+| `DELETE` | `/api/chat/{id}/share` | Yes | Remove shareable link |
+| `DELETE` | `/api/chat/{id}` | Yes | Delete a conversation |
 | `GET` | `/api/documents` | Yes | List all indexed documents |
 | `POST` | `/api/documents/upload` | Yes | Upload a document |
 | `DELETE` | `/api/documents/{id}` | Yes | Delete a document |
 | `POST` | `/api/feedback` | Yes | Submit feedback on a response |
+| `GET` | `/api/admin/stats` | Admin | System usage statistics |
+| `GET` | `/api/admin/feedback-stats` | Admin | Feedback satisfaction data |
+| `GET` | `/api/shared/{share_id}` | No | View shared conversation |
 
 All authenticated endpoints require: `Authorization: Bearer <token>`
 

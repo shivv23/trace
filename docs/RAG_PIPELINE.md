@@ -141,7 +141,7 @@ The generation prompt enforces strict rules:
 
 | Provider | Model | Free Tier | Priority |
 |---|---|---|---|
-| Google Gemini | gemini-3.1-flash-lite-preview | 60 req/min | Primary |
+| Google Gemini | gemini-2.0-flash | 60 req/min | Primary |
 | Groq | llama-3.3-70b-versatile | 30 req/min, no credit card | Fallback |
 
 ### Fallback Mode
