@@ -39,21 +39,9 @@ export default function SearchModal({ open, onClose, onSelectConversation }) {
   }, [query])
 
   useEffect(() => {
+    if (!open) return
     const handler = (e) => {
-      if (e.key === 'Escape' && open) onClose()
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        if (open) onClose()
-        else {
-          setQuery('')
-          setResults([])
-          onClose()
-          setTimeout(() => {
-            const event = new CustomEvent('trace-open-search')
-            window.dispatchEvent(event)
-          }, 10)
-        }
-      }
+      if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)

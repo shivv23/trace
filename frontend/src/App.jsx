@@ -44,11 +44,15 @@ export default function App() {
 
   useEffect(() => {
     if (!authenticated) return
-    healthCheck()
-      .then(() => setBackendStatus('online'))
-      .catch(() => setBackendStatus('offline'))
+    let polling = true
+    const check = () => healthCheck()
+      .then(() => { if (polling) setBackendStatus('online') })
+      .catch(() => { if (polling) setBackendStatus('offline') })
+    check()
+    const interval = setInterval(check, 30000)
     loadConversations()
     if (user?.isAdmin) { loadAdminStats(); loadFeedbackStats() }
+    return () => { polling = false; clearInterval(interval) }
   }, [authenticated])
 
   const loadConversations = async () => {

@@ -157,48 +157,6 @@ export function useChat() {
     }
   }, [conversationId])
 
-  const sendNonStreaming = useCallback(async (text) => {
-    setIsLoading(true)
-    setError(null)
-
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-      timestamp: new Date().toISOString(),
-    }
-    setMessages(prev => [...prev, userMessage])
-
-    try {
-      const response = await sendMessage(text, conversationId)
-
-      if (!conversationId) {
-        setConversationId(response.conversation_id)
-      }
-
-      assistantIndex.current += 1
-
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.answer,
-        sources: response.sources,
-        confidence: response.confidence,
-        conversationId: response.conversation_id,
-        messageIndex: assistantIndex.current,
-        processingTime: response.processing_time_ms,
-        language: response.language || 'en',
-        webSearchUsed: response.web_search_used || false,
-        timestamp: new Date().toISOString(),
-      }
-      setMessages(prev => [...prev, assistantMessage])
-    } catch (err) {
-      setError(err?.message || 'An error occurred')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [conversationId])
-
   const rateMessage = useCallback(async (messageIndex, rating, correctedAnswer = null) => {
     if (!conversationId) return
     try {

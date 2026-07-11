@@ -77,6 +77,30 @@ Authorization: Bearer <token>
 }
 ```
 
+#### Change Password
+
+```
+POST /api/auth/change-password
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "current_password": "oldpass",
+  "new_password": "newsecurepass123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Password updated"
+}
+```
+
 ---
 
 ## Health Check
@@ -107,7 +131,7 @@ Returns system status and configuration (no auth required).
 
 All chat endpoints require `Authorization: Bearer <token>`.
 
-### Send Message
+### Send Message (Non-Streaming)
 
 ```
 POST /api/chat
@@ -132,17 +156,7 @@ POST /api/chat
 ```json
 {
   "answer": "Based on the documentation, the key features include:\n\n1. **Dashboard Analytics** — Real-time business metrics [Source 1]\n2. **Automated Workflows** — Trigger-based process automation [Source 2]\n3. **API Integration** — REST and webhook support [Source 1]",
-  "sources": [
-    {
-      "chunk_id": "abc123_0",
-      "document_id": "abc123",
-      "document_name": "product_docs.pdf",
-      "content": "Dashboard Analytics provides real-time visualization...",
-      "relevance_score": 0.89,
-      "page_number": null,
-      "chunk_index": 0
-    }
-  ],
+  "sources": [...],
   "confidence": {
     "overall": 0.823,
     "relevance_score": 0.85,
@@ -152,14 +166,45 @@ POST /api/chat
     "label": "high"
   },
   "conversation_id": "550e8400-e29b-41d4-a716-446655440000",
-  "processing_time_ms": 1243.5
+  "processing_time_ms": 1243.5,
+  "language": "en",
+  "web_search_used": false
 }
 ```
+
+### Send Message (Streaming)
+
+```
+POST /api/chat/stream
+```
+
+Same request body as non-streaming. Returns `text/event-stream` with SSE events:
+
+```
+data: {"type":"token","text":"Based"}
+
+data: {"type":"token","text":" on"}
+
+data: {"type":"token","text":" the"}
+
+data: {"type":"done"}
+
+data: {"type":"metadata","sources":[...],"confidence":{...},"conversation_id":"...","processing_time_ms":1243.5,"grounded":true,"suggested_questions":["...","..."],"language":"en","web_search_used":false}
+```
+
+Event types:
+| Type | Description |
+|------|-------------|
+| `token` | A single text token from the LLM stream |
+| `done` | Streaming complete (no payload) |
+| `error` | Error message |
+| `metadata` | Final event with sources, confidence, suggestions |
 
 ### Get Conversation History
 
 ```
 GET /api/chat/{conversation_id}
+Authorization: Bearer <token>
 ```
 
 **Response:**
@@ -182,6 +227,121 @@ GET /api/chat/{conversation_id}
       "created_at": "2026-06-25T12:00:01"
     }
   ]
+}
+```
+
+### List Conversations
+
+```
+GET /api/chat/conversations/list
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "conversations": [
+    {
+      "id": "conv-uuid",
+      "title": "What features does your product have?",
+      "created_at": "2026-06-25T12:00:00",
+      "updated_at": "2026-06-25T12:05:00",
+      "message_count": 4
+    }
+  ]
+}
+```
+
+### Delete Conversation
+
+```
+DELETE /api/chat/{conversation_id}
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Conversation deleted"
+}
+```
+
+### Rename Conversation
+
+```
+PUT /api/chat/{conversation_id}/rename
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "title": "New conversation title"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "title": "New conversation title"
+}
+```
+
+### Share Conversation
+
+```
+POST /api/chat/{conversation_id}/share
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "share_id": "abc123def456",
+  "share_url": "/shared/abc123def456"
+}
+```
+
+### Unshare Conversation
+
+```
+DELETE /api/chat/{conversation_id}/share
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+### Search Messages
+
+```
+GET /api/chat/search?q=your+search+term
+Authorization: Bearer <token>
+```
+
+Requires minimum 2 characters for query.
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "id": 42,
+      "content": "The refund policy states...",
+      "role": "assistant",
+      "conversation_id": "conv-uuid",
+      "created_at": "2026-06-25T12:00:01",
+      "conv_title": "Refund policy question"
+    }
+  ],
+  "query": "your search term"
 }
 ```
 
@@ -261,6 +421,73 @@ POST /api/feedback
 | `message_index` | integer | Yes | Which assistant message (0-based) |
 | `rating` | integer | Yes | 1 (thumbs up) or 0 (thumbs down) |
 | `corrected_answer` | string | No | User's correction for wrong answers |
+
+---
+
+## Admin
+
+Requires `Authorization: Bearer <token>` and admin role.
+
+### System Stats
+
+```
+GET /api/admin/stats
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "users": 2,
+  "documents": 5,
+  "conversations": 12,
+  "messages": 84,
+  "feedback_entries": 7,
+  "total_output_chars": 45200
+}
+```
+
+### Feedback Stats
+
+```
+GET /api/admin/feedback-stats
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "total": 7,
+  "positive": 5,
+  "negative": 2,
+  "satisfaction_rate": 0.714,
+  "recent_feedback": [...]
+}
+```
+
+---
+
+## Shared Conversations
+
+No authentication required. Used for public sharing links.
+
+### Get Shared Conversation
+
+```
+GET /api/shared/{share_id}
+```
+
+**Response:**
+```json
+{
+  "title": "My shared conversation",
+  "created_at": "2026-06-25T12:00:00",
+  "messages": [
+    {"role": "user", "content": "Question?", "created_at": "..."},
+    {"role": "assistant", "content": "Answer!", "created_at": "..."}
+  ]
+}
+```
 
 ---
 

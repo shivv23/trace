@@ -1,14 +1,6 @@
-import math
 import numpy as np
 
 from app.config import settings
-
-
-def _sigmoid(x: float) -> float:
-    try:
-        return 1.0 / (1.0 + math.exp(-x))
-    except OverflowError:
-        return 1.0 if x > 0 else 0.0
 
 
 def compute_confidence(query: str, results: list[dict], top_k: int = 5) -> dict:
