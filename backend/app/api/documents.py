@@ -156,6 +156,8 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
     doc = await a_get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    if doc.get("user_id") and doc["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     errors = []
 
@@ -191,6 +193,8 @@ async def get_document_info(doc_id: str, user: dict = Depends(get_current_user))
     doc = await a_get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    if doc.get("user_id") and doc["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
     return DocumentInfo(
         id=doc["id"],
         name=doc["name"],

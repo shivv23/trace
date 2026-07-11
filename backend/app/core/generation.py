@@ -71,10 +71,10 @@ Answer:"""
     return prompt
 
 
-def _stream_groq(prompt: str) -> Generator[str, None, None]:
+def _stream_groq(prompt: str) -> Generator[str, None, None] | None:
     api_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY")
     if not api_key:
-        return
+        return None
     try:
         from groq import Groq
         client = Groq(api_key=api_key, timeout=30.0)
@@ -94,10 +94,10 @@ def _stream_groq(prompt: str) -> Generator[str, None, None]:
         yield None
 
 
-def _stream_gemini(prompt: str) -> Generator[str, None, None]:
+def _stream_gemini(prompt: str) -> Generator[str, None, None] | None:
     api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return
+        return None
     try:
         from google import genai as new_genai
         from google.genai import types
@@ -131,9 +131,11 @@ def stream_answer(query: str, context_chunks: list[dict], conversation_history: 
     streamer = None
 
     if provider == "gemini":
-        streamer = _stream_gemini(prompt)
+        if settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY"):
+            streamer = _stream_gemini(prompt)
     elif provider == "groq":
-        streamer = _stream_groq(prompt)
+        if settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY"):
+            streamer = _stream_groq(prompt)
 
     if streamer is None:
         fallback = redact_pii(_generate_fallback(query, context_chunks))
@@ -205,14 +207,22 @@ def _generate_fallback(query: str, context_chunks: list[dict]) -> str:
         preview = content[:300] + "..." if len(content) > 300 else content
         relevant_parts.append(f"From {source}:\n{preview}")
 
+    has_gemini = bool(settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY"))
+    has_groq = bool(settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY"))
+    provider = settings.LLM_PROVIDER
+    tips = []
+    if not has_gemini and not has_groq:
+        tips.append("Configure GEMINI_API_KEY (https://aistudio.google.com/app/apikey) or GROQ_API_KEY (https://console.groq.com/keys) in your .env file")
+    elif provider == "gemini" and has_gemini:
+        tips.append("The Gemini API key may have hit its rate limit or needs billing enabled")
+    elif provider == "groq" and has_groq:
+        tips.append("The Groq API key may have hit its rate limit or needs billing enabled")
     if relevant_parts:
-        return (
-            "I found the following relevant information from the knowledge base:\n\n"
-            + "\n\n".join(relevant_parts)
-            + "\n\n*Note: I'm running in offline mode without an active LLM connection. "
-            "The Gemini API key may have hit its rate limit or needs billing enabled. "
-            "For full AI-powered answers, configure GROQ_API_KEY in your .env file (free at https://console.groq.com/keys).*"
-        )
+        msg = "I found the following relevant information from the knowledge base:\n\n"
+        msg += "\n\n".join(relevant_parts)
+        if tips:
+            msg += f"\n\n*Note: I'm running in offline mode without an active LLM connection. {' or '.join(tips)}.*"
+        return msg
     return "I couldn't find relevant information in the knowledge base to answer your question."
 
 

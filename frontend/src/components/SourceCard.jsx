@@ -7,7 +7,7 @@ export default function SourceCard({ source, index, isActive }) {
   const [expanded, setExpanded] = useState(false)
   const score = source.relevance_score || 0
   const normalizedScore = typeof score === 'number'
-    ? Math.max(0, Math.min(1, (score + 1) / 2))
+    ? Math.max(0, Math.min(1, score))
     : 0.5
   const scorePercent = Math.round(normalizedScore * 100)
 

@@ -15,6 +15,8 @@ async def submit_feedback(request: FeedbackRequest, user: dict = Depends(get_cur
     conv = await a_get_conversation(request.conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if conv.get("user_id") and conv["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     messages = await a_get_conversation_messages(request.conversation_id)
     assistant_messages = [m for m in messages if m["role"] == "assistant"]

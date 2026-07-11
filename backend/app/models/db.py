@@ -97,6 +97,7 @@ def init_db():
             message_id INTEGER,
             rating INTEGER NOT NULL,
             previous_confidence REAL,
+            corrected_answer TEXT,
             created_at TEXT NOT NULL,
             user_id TEXT NOT NULL DEFAULT '',
             FOREIGN KEY (conversation_id) REFERENCES conversations(id)

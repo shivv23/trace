@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity, Search, Settings, Share2, Globe, ThumbsUp, RefreshCw, Keyboard } from 'lucide-react'
+import { Bot, Menu, X, MessageSquare, FileText, BarChart3, LogOut, Plus, Trash2, Clock, ChevronRight, Users, BookOpen, MessageCircle, Activity, Search, Settings, Share2, Globe, ThumbsUp, Keyboard } from 'lucide-react'
 import ChatWidget from './components/ChatWidget'
 import WelcomeScreen from './components/WelcomeScreen'
 import LoginScreen from './components/LoginScreen'
@@ -9,6 +9,7 @@ import SettingsModal from './components/SettingsModal'
 import SharedConversationView from './components/SharedConversationView'
 import ShortcutsHelp from './components/ShortcutsHelp'
 import { healthCheck, getStoredUser, isAuthenticated, logout, listConversations, deleteConversation, getAdminStats, getFeedbackStats, shareConversation, unshareConversation, renameConversation } from './utils/api'
+import KnowledgePanel from './components/KnowledgePanel'
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -406,8 +407,8 @@ export default function App() {
                   )}
 
                   {sidebarTab === 'files' && (
-                    <div className="p-3 overflow-y-auto h-full">
-                      <KnowledgePanelContent />
+                    <div className="overflow-y-auto h-full">
+                      <KnowledgePanel />
                     </div>
                   )}
 
@@ -554,60 +555,4 @@ function StatCard({ icon, label, value }) {
   )
 }
 
-function KnowledgePanelContent() {
-  const [docs, setDocs] = useState([])
-  const [deleting, setDeleting] = useState(null)
-  const load = () => {
-    import('./utils/api').then(({ listDocuments }) => {
-      listDocuments().then(setDocs).catch(() => {})
-    })
-  }
-  useEffect(load, [])
 
-  const handleDelete = async (docId) => {
-    if (!window.confirm('Delete this document from the knowledge base?')) return
-    setDeleting(docId)
-    try {
-      const { deleteDocument } = await import('./utils/api')
-      await deleteDocument(docId)
-      load()
-    } catch {}
-    setDeleting(null)
-  }
-
-  if (docs.length === 0) {
-    return <p className="text-xs text-surface-500 text-center py-8">No documents uploaded</p>
-  }
-  return (
-    <div className="space-y-2">
-      {docs.map((doc) => (
-        <div key={doc.id} className="group glass-panel rounded-xl px-3 py-2.5 relative overflow-hidden">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-surface-300 truncate">{doc.name}</p>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-[10px] text-surface-600">{doc.type}</span>
-                <span className="text-[10px] text-surface-600">{doc.chunk_count} chunks</span>
-                <span className="text-[10px] text-surface-600">{Math.round(doc.size_bytes / 1024)}KB</span>
-              </div>
-            </div>
-            <button
-              onClick={() => handleDelete(doc.id)}
-              disabled={deleting === doc.id}
-              className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 bg-surface-800/50 hover:bg-red-500/20
-                text-surface-500 hover:text-red-400 border border-surface-700/20 hover:border-red-500/30
-                transition-all duration-200 shrink-0 disabled:opacity-50"
-              title="Delete document"
-            >
-              {deleting === doc.id ? (
-                <RefreshCw size={12} className="animate-spin" />
-              ) : (
-                <Trash2 size={12} />
-              )}
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
