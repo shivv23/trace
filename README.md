@@ -25,13 +25,13 @@ JWT-based authentication with user-scoped documents, conversations, and feedback
 Multi-stage retrieval augmented generation that cites every source with page numbers, relevance scores, and content previews.
 
 ### 📊 Confidence Scoring
-Multi-factor confidence gauge (0-100%) based on relevance, semantic similarity, source diversity, and support count — so users know how much to trust each answer.
+Multi-factor confidence gauge (high/medium/low) based on best-match score, source consensus, and source quality — so users know how much to trust each answer.
 
 ### 📁 Multi-Format Ingestion
 Upload PDF, DOCX, TXT, Markdown, JSON, CSV, and HTML files. Trace extracts, chunks, and indexes them automatically.
 
 ### 🔄 Hybrid Search
-Combines dense vector embeddings (sentence-transformers) with sparse keyword search (TF-IDF) for maximum retrieval quality.
+Combines dense vector embeddings (Gemini embedding API) with sparse keyword search (TF-IDF) for maximum retrieval quality.
 
 ### 💬 Conversational Memory
 Maintains conversation context across multiple turns. Ask follow-up questions naturally.
@@ -49,7 +49,7 @@ PII redaction (phone, email, Aadhaar, PAN, credit cards) and content moderation 
 ```
 User → Login → JWT Token → React Frontend → FastAPI Backend → Hybrid Retriever → ChromaDB
                                  ↓                    ↓
-                             Reranker (cross-encoder/TF-IDF)
+                              TF-IDF Reranker
                                  ↓
                            Confidence Scorer → LLM (Gemini/Groq)
                                  ↓
@@ -65,12 +65,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full system design.
 | Layer | Technology |
 |---|---|
 | Frontend | React 18, Vite, Tailwind CSS, Framer Motion |
-| Backend | FastAPI, Uvicorn, SQLite (async via asyncio.to_thread) |
-| Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
+| Backend | FastAPI, Uvicorn, SQLite (async via aiosqlite) |
+| Embeddings | Gemini embedding-001 API (3072-dim) |
 | Vector Store | ChromaDB (local persistent) |
 | LLM | Google Gemini 2.0 Flash / Groq Llama 3.3 (auto fallback) |
 | Retrieval | Hybrid dense + sparse (TF-IDF) |
-| Reranking | Cross-encoder / TF-IDF similarity (auto fallback) |
+| Reranking | TF-IDF cosine similarity |
 | Auth | JWT (python-jose) + bcrypt |
 | Container | Docker + docker-compose |
 
@@ -89,11 +89,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full system design.
 # 1. Backend
 cd backend
 python -m venv venv
-source venv/bin/activate  # or: venv\Scripts\activate on Windows
+# Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your GEMINI_API_KEY or GROQ_API_KEY
-# Default admin login: admin / admin123 (CHANGE IN PRODUCTION)
+# Create .env with your API keys (see .env.example):
+# GEMINI_API_KEY=your_key_here
+# GROQ_API_KEY=your_key_here
 uvicorn app.main:app --reload
 
 # 2. Frontend (in another terminal)
@@ -156,7 +157,8 @@ trace/
 │   │   ├── models/        # Pydantic schemas, DB models
 │   │   ├── utils/         # PII redaction, content moderation
 │   │   └── main.py        # FastAPI app entry
-│   ├── tests/             # 32 pytest tests
+│   ├── tests/             # Pytest tests
+│   ├── .env.example       # Environment variable template
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/
@@ -183,7 +185,7 @@ cd backend
 python -m pytest tests/ -v
 ```
 
-All 32 tests should pass.
+31 of 32 tests should pass (1 pre-existing test isolation issue with async lifespan).
 
 ---
 
