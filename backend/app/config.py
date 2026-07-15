@@ -26,8 +26,7 @@ class Settings:
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
     GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
 
-    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
-    CROSS_ENCODER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-4-v2"
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
 
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 64

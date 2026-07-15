@@ -16,13 +16,11 @@ def compute_confidence(query: str, results: list[dict], top_k: int = 5) -> dict:
 
     top_results = results[:top_k]
 
-    relevance_scores = [r.get("rerank_score", r.get("combined_score", 0)) for r in top_results]
-    relevance_score = float(np.mean(relevance_scores)) if relevance_scores else 0.0
+    relevance_scores = [r.get("combined_score", r.get("rerank_score", 0)) for r in top_results]
+    max_score = float(max(relevance_scores)) if relevance_scores else 0.0
 
     support_count = sum(1 for s in relevance_scores if s > 0.3)
     support_ratio = support_count / top_k
-
-    semantic_similarity = relevance_score
 
     source_names = set()
     for r in top_results:
@@ -37,11 +35,13 @@ def compute_confidence(query: str, results: list[dict], top_k: int = 5) -> dict:
 
     source_quality = 0.5 * source_diversity + 0.5 * consistency
 
+    consensus_bonus = 0.05 if support_count == top_k else 0.0
+
     overall = (
-        0.35 * relevance_score +
-        0.25 * semantic_similarity +
-        0.20 * source_quality +
-        0.20 * support_ratio
+        0.55 * max_score +
+        0.30 * support_ratio +
+        0.15 * source_quality +
+        consensus_bonus
     )
     overall = max(0.0, min(1.0, overall))
 
@@ -54,8 +54,8 @@ def compute_confidence(query: str, results: list[dict], top_k: int = 5) -> dict:
 
     return {
         "overall": round(overall, 3),
-        "relevance_score": round(relevance_score, 3),
-        "semantic_similarity": round(semantic_similarity, 3),
+        "relevance_score": round(max_score, 3),
+        "semantic_similarity": round(max_score, 3),
         "source_quality": round(source_quality, 3),
         "support_count": support_count,
         "label": label,

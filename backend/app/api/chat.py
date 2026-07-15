@@ -116,7 +116,7 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
     detected_lang = detect_language(request.message)
 
     has_sources = len(reranked[:5]) > 0
-    top_score = max((s.get("rerank_score", s.get("combined_score", 0)) for s in reranked[:5]), default=0)
+    top_score = max((s.get("combined_score", s.get("rerank_score", 0)) for s in reranked[:5]), default=0)
     grounded = has_sources and top_score >= settings.CONFIDENCE_THRESHOLD_MEDIUM
 
     web_results_text = ""
@@ -143,7 +143,7 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
         {"chunk_id": s["chunk_id"], "document_id": s.get("metadata", {}).get("document_id", ""),
          "document_name": s.get("metadata", {}).get("document_name", "Unknown"),
          "content": s["content"][:500],
-         "relevance_score": s.get("rerank_score", s.get("combined_score", 0)),
+         "relevance_score": s.get("combined_score", s.get("rerank_score", 0)),
          "page_number": s.get("metadata", {}).get("page_number"),
          "chunk_index": s.get("metadata", {}).get("chunk_index", 0),
          "file_type": s.get("metadata", {}).get("file_type", "")}
@@ -179,7 +179,7 @@ async def chat_stream(request: ChatRequest, fastapi_request: Request, user: dict
                 "document_id": s.get("metadata", {}).get("document_id", ""),
                 "document_name": s.get("metadata", {}).get("document_name", "Unknown"),
                 "content": s["content"][:500],
-                "relevance_score": s.get("rerank_score", s.get("combined_score", 0)),
+                "relevance_score": s.get("combined_score", s.get("rerank_score", 0)),
                 "page_number": s.get("metadata", {}).get("page_number"),
                 "chunk_index": s.get("metadata", {}).get("chunk_index", 0),
                 "file_type": s.get("metadata", {}).get("file_type", ""),
@@ -231,7 +231,7 @@ async def chat(request: ChatRequest, fastapi_request: Request, user: dict = Depe
 
     detected_lang = detect_language(request.message)
     has_sources = len(reranked[:5]) > 0
-    top_score = max((s.get("rerank_score", s.get("combined_score", 0)) for s in reranked[:5]), default=0)
+    top_score = max((s.get("combined_score", s.get("rerank_score", 0)) for s in reranked[:5]), default=0)
     grounded = has_sources and top_score >= settings.CONFIDENCE_THRESHOLD_MEDIUM
 
     web_results_text = ""
@@ -258,7 +258,7 @@ async def chat(request: ChatRequest, fastapi_request: Request, user: dict = Depe
             "document_id": s.get("metadata", {}).get("document_id", ""),
             "document_name": s.get("metadata", {}).get("document_name", "Unknown"),
             "content": s["content"][:500],
-            "relevance_score": s.get("rerank_score", s.get("combined_score", 0)),
+            "relevance_score": s.get("combined_score", s.get("rerank_score", 0)),
             "page_number": s.get("metadata", {}).get("page_number"),
             "chunk_index": s.get("metadata", {}).get("chunk_index", 0),
             "file_type": s.get("metadata", {}).get("file_type", ""),
@@ -279,7 +279,7 @@ async def chat(request: ChatRequest, fastapi_request: Request, user: dict = Depe
             document_id=s.get("metadata", {}).get("document_id", ""),
             document_name=s.get("metadata", {}).get("document_name", "Unknown"),
             content=s["content"][:500],
-            relevance_score=s.get("rerank_score", s.get("combined_score", 0)),
+            relevance_score=s.get("combined_score", s.get("rerank_score", 0)),
             page_number=s.get("metadata", {}).get("page_number"),
             chunk_index=s.get("metadata", {}).get("chunk_index", 0),
             file_type=s.get("metadata", {}).get("file_type", ""),

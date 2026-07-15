@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { User, Bot, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, Download, Lightbulb, Globe, Search } from 'lucide-react'
+import { User, Bot, ChevronDown, ChevronUp, ExternalLink, Download, Lightbulb, Globe, Search } from 'lucide-react'
 import ConfidenceGauge from './ConfidenceGauge'
 import SourceCard from './SourceCard'
 import FeedbackButtons from './FeedbackButtons'
@@ -69,7 +69,6 @@ export default function MessageBubble({ message, onRate, onSuggestedClick }) {
   const isUser = message.role === 'user'
   const hasSources = message.sources && message.sources.length > 0
   const hasSuggestions = message.suggestedQuestions && message.suggestedQuestions.length > 0
-  const isUngrounded = !isUser && message.grounded === false && hasSources
 
   const handleExport = () => {
     const text = `**${message.role === 'user' ? 'You' : 'Trace'}**: ${message.content}`
@@ -115,14 +114,7 @@ export default function MessageBubble({ message, onRate, onSuggestedClick }) {
             ? 'bg-gradient-to-br from-trace-600 to-trace-700 text-white rounded-2xl rounded-tr-md'
             : 'glass-panel rounded-2xl rounded-tl-md'
         )}>
-          {isUngrounded && (
-            <div className="flex items-center gap-2 mb-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <AlertTriangle size={12} className="text-amber-400 shrink-0" />
-              <span className="text-[10px] text-amber-400 leading-tight">
-                This answer uses general AI knowledge. The documents may not contain this information.
-              </span>
-            </div>
-          )}
+
 
           {isUser ? (
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
